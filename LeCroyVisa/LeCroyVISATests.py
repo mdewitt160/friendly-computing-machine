@@ -1,0 +1,42 @@
+import sys
+import os
+import unittest
+import time
+from LeCroyVISA import LeCroyVISA
+
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from ScopeSessions.WaveformReader import WaveformReader  # pyright: ignore[reportMissingImports]
+
+
+class Test_LeCroyVISAVXI11UnitTests(unittest.TestCase):
+    def setUp(self):
+        self.Scope = LeCroyVISA("192.168.23.1")
+        self.Scope.Connect()
+
+    def tearDown(self):
+        self.Scope.Disconnect()
+    
+    def test_BasicIdn(self):
+        self.Scope.Write("COMM_HEADER OFF")  # Optional: Disable communication header for cleaner responses
+        self.Scope.Write("*IDN?")
+        idn = self.Scope.Read()
+        self.assertEqual(idn, "LECROY,SDA8330HD,CHE-LMDEWITT,11.4.0")  # type: ignore # Replace with expected IDN responsed
+
+    def test_GetC1Trace(self):
+        self.Scope.Write("vbs? 'return = app.Acquisition.C1.Out.Result.Samples'")
+        samples = self.Scope.Read()
+        reader = WaveformReader(self.Scope)
+        startTime = time.time()
+        waveform = reader.GetScaledWaveformData("Acquisition","C1", "WORD")
+        print(f"\nTime taken to read waveform: {time.time() - startTime:.2f} seconds")
+        self.assertEqual(int(samples), len(waveform))
+        self.Scope.Write("vbs? 'return = app.Cursors.StdCursOfC1.Y1.Result.Value'")
+        cursorValue = self.Scope.Read()
+        point = int((50e-6 + 85e-9)/100e-6 * int(samples))  # Calculate the index corresponding to 50us + 85ns
+        # Compare the cursor value to the middle sample of the waveform, allowing for a small tolerance
+        self.assertAlmostEqual(float(cursorValue), waveform[point], delta=0.0005)
+
+
+if __name__ == '__main__':
+    unittest.main()
