@@ -31,19 +31,19 @@ def prbs15(n_bits, seed=0x7FFF):
     return bits
 
 # ---------------------------------------------------------------------
-# Gray-coded 16-PAM mapper
+# Natural-binary 16-PAM mapper (non-Gray)
 # Levels: ±1, ±3, ±5, ..., ±15
 # Normalized to unit average power.
 # ---------------------------------------------------------------------
-pam16_gray = np.array([
-    -15, -13, -9, -11,
-     -1,  -3, -7,  -5,
-     15,  13,  9,  11,
-      1,   3,  7,   5
+pam16 = np.array([
+    -15, -13, -11, -9,
+     -7,  -5,  -3, -1,
+      1,   3,   5,  7,
+      9,  11,  13, 15
 ], dtype=float)
 
 # Normalize 256QAM average power to 1
-pam16_gray /= np.sqrt(170)
+pam16 /= np.sqrt(170)
 
 # ---------------------------------------------------------------------
 # Generate bits
@@ -72,8 +72,8 @@ Q_idx = (
      bit_groups[:,7]
 )
 
-I_symbols = pam16_gray[I_idx]
-Q_symbols = pam16_gray[Q_idx]
+I_symbols = pam16[I_idx]
+Q_symbols = pam16[Q_idx]
 
 # Complex 256QAM symbols
 qam_symbols = I_symbols + 1j * Q_symbols
@@ -111,8 +111,8 @@ def rrc_filter(sps, span_symbols=4, rolloff=0.22):
 rrc_h = rrc_filter(sps, span_symbols=5, rolloff=0.22)
 
 # Apply RRC filter to the repeated symbols
-iq_waveform_temp = np.repeat(qam_symbols, sps)
-iq_waveform = np.convolve(iq_waveform_temp, rrc_h, mode='same')
+iq_waveform = np.repeat(qam_symbols, sps)
+#iq_waveform = np.convolve(iq_waveform_temp, rrc_h, mode='same')
 
 # Separate I and Q waveforms
 I_waveform = np.real(iq_waveform)
@@ -148,5 +148,5 @@ print(f"Sample Rate : {sample_rate/1e9:.2f} GS/s")
 print(f"Samples     : {len(iq_waveform)}")
 
 # Save I and Q waveforms to separate txt files
-np.savetxt('I_waveform 256QAM 192.5 Mbaud.txt', I_waveform, fmt='%.6e')
-np.savetxt('Q_waveform 256QAM 192.5 Mbaud.txt', Q_waveform, fmt='%.6e')
+np.savetxt('I_waveform 256QAM 192.5 Mbaud no RRC no gray.txt', I_waveform, fmt='%.6e')
+np.savetxt('Q_waveform 256QAM 192.5 Mbaud no RRC no gray.txt', Q_waveform, fmt='%.6e')
