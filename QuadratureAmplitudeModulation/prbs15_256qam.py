@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------
 
 sample_rate = 1.54e9    # 1.54 GS/s  because this is max IQ rate for the T3AWG6k
-sps = 8                    # samples per symbol for 256QAM
-symbol_rate = sample_rate / sps  # 192.5 MBaud
+bits_per_symbol = 8        # 256QAM has 8 bits per symbol
+sps = 4                    # baud rate = sample_rate / sps = 1.54e9 / 4 = 385 MBaud
+symbol_rate = sample_rate / sps  # 385 MBaud
 
-num_symbols = 100000
+# enough for a little over 2 prbs15 periods (32767 bits/8 bits or about 4095 symbols) to fill the 256QAM constellation uniformly
+num_symbols = 10000  
 
 # ---------------------------------------------------------------------
 # PRBS15 Generator (x^15 + x^14 + 1)
@@ -48,7 +50,6 @@ pam16 /= np.sqrt(170)
 # ---------------------------------------------------------------------
 # Generate bits
 # ---------------------------------------------------------------------
-bits_per_symbol = 8
 num_bits = num_symbols * bits_per_symbol
 
 bits = prbs15(num_bits)
@@ -148,5 +149,5 @@ print(f"Sample Rate : {sample_rate/1e9:.2f} GS/s")
 print(f"Samples     : {len(iq_waveform)}")
 
 # Save I and Q waveforms to separate txt files
-np.savetxt('I_waveform 256QAM 192.5 Mbaud no RRC no gray.txt', I_waveform, fmt='%.6e')
-np.savetxt('Q_waveform 256QAM 192.5 Mbaud no RRC no gray.txt', Q_waveform, fmt='%.6e')
+np.savetxt(f'I_waveform 256QAM {symbol_rate/1e6:.2f} Mbaud no RRC no gray.txt', I_waveform, fmt='%.6e')
+np.savetxt(f'Q_waveform 256QAM {symbol_rate/1e6:.2f} Mbaud no RRC no gray.txt', Q_waveform, fmt='%.6e')
