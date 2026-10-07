@@ -2,22 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # -------------------------------------------------
-# Generate PRBS7
-# Polynomial x^7 + x^6 + 1
-# -------------------------------------------------
-def prbs7(n_bits):
-    state = 0x7F                   # non-zero seed
-    bits = np.zeros(n_bits, dtype=int)
-
-    for i in range(n_bits):
-        bits[i] = state & 1
-
-        new_bit = ((state >> 6) ^ (state >> 5)) & 1
-        state = ((state << 1) & 0x7F) | new_bit
-
-    return bits
-
-# -------------------------------------------------
 # Generate SpaceWire Data/Strobe
 # -------------------------------------------------
 def spacewire_encode(bits):
@@ -28,7 +12,7 @@ def spacewire_encode(bits):
     current_data = 0
     current_strobe = 0
 
-    prev_bit = bits[0]
+    prev_bit = current_data
 
     for bit in bits:
 
@@ -48,29 +32,58 @@ def spacewire_encode(bits):
 
     return np.array(data), np.array(strobe)
 
+
+def spacewire_character_bits(message_bytes, null_count):
+    fct_code = 0b00
+    eop_code = 0b01
+    esc_code = 0b11
+    characters = [('data', byte) for byte in message_bytes]
+    characters.append(('control', eop_code))
+    characters.extend([('control', esc_code), ('control', fct_code)] * null_count)
+
+    bits = []
+    previous_payload = [0] * 8
+
+    for character_type, value in characters:
+        is_control = int(character_type == 'control')
+        if is_control:
+            payload_bits = [(value >> 1) & 1, value & 1]
+        else:
+            payload_bits = [(value >> bit) & 1 for bit in range(8)]
+
+        parity_bit = 1 ^ ((sum(previous_payload) + is_control) & 1)
+        bits.extend([parity_bit, is_control, *payload_bits])
+        previous_payload = payload_bits
+
+    return np.array(bits, dtype=int)
+
+
 # -------------------------------------------------
-# Expand to waveform samples
+# Represent each held bit at its sample-timed boundaries without allocating
+# every sample in the 5 GS/s waveform.
 # -------------------------------------------------
-def make_waveform(bits, samples_per_bit=20):
-
-    wave = np.repeat(bits, samples_per_bit)
-
-    t = np.arange(len(wave)) / samples_per_bit
-
-    return t, wave
+def make_waveform(bits, samples_per_bit):
+    sample_indices = np.arange(len(bits) + 1) * samples_per_bit
+    wave = np.append(bits, bits[-1])
+    return sample_indices, wave
 
 # -------------------------------------------------
 # Main
 # -------------------------------------------------
-N_BITS = 40
-SPB = 20
+SAMPLE_RATE = 5_000_000_000  # samples per second
+BIT_RATE = 400_000_000        # bits per second
+SAMPLES_PER_BIT = SAMPLE_RATE / BIT_RATE
+MESSAGE = 'LeCroy SpaceWire'
+NULL_COUNT = 100
 
-prbs_bits = prbs7(N_BITS)
+message_bytes = MESSAGE.encode('ascii')
+serial_bits = spacewire_character_bits(message_bytes, NULL_COUNT)
 
-data_bits, strobe_bits = spacewire_encode(prbs_bits)
+data_bits, strobe_bits = spacewire_encode(serial_bits)
 
-t, data_wave = make_waveform(data_bits, SPB)
-_, strobe_wave = make_waveform(strobe_bits, SPB)
+sample_indices, data_wave = make_waveform(data_bits, SAMPLES_PER_BIT)
+_, strobe_wave = make_waveform(strobe_bits, SAMPLES_PER_BIT)
+time = sample_indices / SAMPLE_RATE
 
 # Recover clock
 clock_wave = np.logical_xor(data_wave,
@@ -81,20 +94,20 @@ clock_wave = np.logical_xor(data_wave,
 # -------------------------------------------------
 plt.figure(figsize=(12,6))
 
-plt.step(t, data_wave + 2,
+plt.step(time, data_wave + 2,
          where='post', label='Data')
 
-plt.step(t, strobe_wave + 1,
+plt.step(time, strobe_wave + 1,
          where='post', label='Strobe')
 
-plt.step(t, clock_wave,
+plt.step(time, clock_wave,
          where='post', label='Clock = Data XOR Strobe')
 
 plt.yticks([0,1,2],
            ['Clock','Strobe','Data'])
 
-plt.xlabel('Bit Time')
-plt.title('SpaceWire PRBS7 Data / Strobe / Clock')
+plt.xlabel('Time (s)')
+plt.title('SpaceWire Data / Strobe / Clock (400 Mbit/s, 5 GS/s)')
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
