@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import unittest
+import numpy as np
 from LeCroyVICP import LeCroyVICP
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -15,6 +16,17 @@ class Test_LeCroyVICPUnitTests(unittest.TestCase):
     def tearDown(self):
         self.Scope.Disconnect()
     
+    def test_BasicArrayOperation(self):
+        data_array = np.array([1, 2, 3, 4, 5])
+        threshold = 3
+        data_logic = data_array > threshold
+        strobe_array = np.array([0, 1, 2, 3, 4])
+        strobe_logic = strobe_array > threshold                                 
+        clock = np.asarray(np.bitwise_xor(data_logic, strobe_logic), dtype=np.float64)
+        np.testing.assert_array_equal(clock, [0.0, 1.0, 1.0, 0.0, 0.0])
+    
+
+
 
     def test_BasicIdn(self):
         self.Scope.Write("COMM_HEADER OFF")  # Optional: Disable communication header for cleaner responses

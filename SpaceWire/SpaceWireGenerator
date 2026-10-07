@@ -1,0 +1,101 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -------------------------------------------------
+# Generate PRBS7
+# Polynomial x^7 + x^6 + 1
+# -------------------------------------------------
+def prbs7(n_bits):
+    state = 0x7F                   # non-zero seed
+    bits = np.zeros(n_bits, dtype=int)
+
+    for i in range(n_bits):
+        bits[i] = state & 1
+
+        new_bit = ((state >> 6) ^ (state >> 5)) & 1
+        state = ((state << 1) & 0x7F) | new_bit
+
+    return bits
+
+# -------------------------------------------------
+# Generate SpaceWire Data/Strobe
+# -------------------------------------------------
+def spacewire_encode(bits):
+
+    data = []
+    strobe = []
+
+    current_data = 0
+    current_strobe = 0
+
+    prev_bit = bits[0]
+
+    for bit in bits:
+
+        # Data signal follows bit value
+        if bit != current_data:
+            current_data ^= 1
+
+        # SpaceWire rule:
+        # Strobe changes when adjacent data bits are equal
+        if bit == prev_bit:
+            current_strobe ^= 1
+
+        data.append(current_data)
+        strobe.append(current_strobe)
+
+        prev_bit = bit
+
+    return np.array(data), np.array(strobe)
+
+# -------------------------------------------------
+# Expand to waveform samples
+# -------------------------------------------------
+def make_waveform(bits, samples_per_bit=20):
+
+    wave = np.repeat(bits, samples_per_bit)
+
+    t = np.arange(len(wave)) / samples_per_bit
+
+    return t, wave
+
+# -------------------------------------------------
+# Main
+# -------------------------------------------------
+N_BITS = 40
+SPB = 20
+
+prbs_bits = prbs7(N_BITS)
+
+data_bits, strobe_bits = spacewire_encode(prbs_bits)
+
+t, data_wave = make_waveform(data_bits, SPB)
+_, strobe_wave = make_waveform(strobe_bits, SPB)
+
+# Recover clock
+clock_wave = np.logical_xor(data_wave,
+                            strobe_wave).astype(int)
+
+# -------------------------------------------------
+# Plot
+# -------------------------------------------------
+plt.figure(figsize=(12,6))
+
+plt.step(t, data_wave + 2,
+         where='post', label='Data')
+
+plt.step(t, strobe_wave + 1,
+         where='post', label='Strobe')
+
+plt.step(t, clock_wave,
+         where='post', label='Clock = Data XOR Strobe')
+
+plt.yticks([0,1,2],
+           ['Clock','Strobe','Data'])
+
+plt.xlabel('Bit Time')
+plt.title('SpaceWire PRBS7 Data / Strobe / Clock')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()

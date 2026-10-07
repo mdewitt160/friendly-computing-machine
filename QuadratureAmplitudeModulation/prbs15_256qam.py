@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 
 sample_rate = 1.54e9    # 1.54 GS/s  because this is max IQ rate for the T3AWG6k
 bits_per_symbol = 8        # 256QAM has 8 bits per symbol
-sps = 4                    # baud rate = sample_rate / sps = 1.54e9 / 4 = 385 MBaud
-symbol_rate = sample_rate / sps  # 385 MBaud
+sps = 2                  # baud rate = sample_rate / sps = 1.54e9 / 2 = 770 MBaud
+symbol_rate = sample_rate / sps  # 770 MBaud
 
 # enough for a little over 2 prbs15 periods (32767 bits/8 bits or about 4095 symbols) to fill the 256QAM constellation uniformly
 num_symbols = 10000  
