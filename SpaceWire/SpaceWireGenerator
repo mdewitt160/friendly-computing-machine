@@ -1,3 +1,5 @@
+from builtins import int
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -58,19 +60,17 @@ def spacewire_character_bits(message_bytes, null_count):
     return np.array(bits, dtype=int)
 
 
-# -------------------------------------------------
-# Represent each held bit at its sample-timed boundaries without allocating
-# every sample in the 5 GS/s waveform.
-# -------------------------------------------------
 def make_waveform(bits, samples_per_bit):
-    sample_indices = np.arange(len(bits) + 1) * samples_per_bit
-    wave = np.append(bits, bits[-1])
+    sample_count = int(np.ceil(len(bits) * samples_per_bit))
+    sample_indices = np.arange(sample_count)
+    bit_indices = np.floor(sample_indices / samples_per_bit).astype(int)
+    wave = np.asarray(bits)[bit_indices]
     return sample_indices, wave
 
 # -------------------------------------------------
 # Main
 # -------------------------------------------------
-SAMPLE_RATE = 5_000_000_000  # samples per second
+SAMPLE_RATE = 4_800_000_000  # samples per second
 BIT_RATE = 400_000_000        # bits per second
 SAMPLES_PER_BIT = SAMPLE_RATE / BIT_RATE
 MESSAGE = 'LeCroy SpaceWire'
@@ -107,8 +107,12 @@ plt.yticks([0,1,2],
            ['Clock','Strobe','Data'])
 
 plt.xlabel('Time (s)')
-plt.title('SpaceWire Data / Strobe / Clock (400 Mbit/s, 5 GS/s)')
+plt.title(f'SpaceWire Data / Strobe / Clock ({BIT_RATE/1e6:g} Mbit/s, {SAMPLE_RATE/1e9:g} GS/s)')
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
+
+# Save I and Q waveforms to separate txt files
+np.savetxt(f'SpaceWire_Data_Wave_{SAMPLE_RATE/1e6:.0f}MS_per_sec_Bit_Rate_{BIT_RATE/1e6:.0f}Mbit_per_sec.txt', data_wave, fmt='%.6e')
+np.savetxt(f'SpaceWire_Strobe_Wave_{SAMPLE_RATE/1e6:.0f}MS_per_sec_Bit_Rate_{BIT_RATE/1e6:.0f}Mbit_per_sec.txt', strobe_wave, fmt='%.6e')
