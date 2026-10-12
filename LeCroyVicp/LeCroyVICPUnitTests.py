@@ -10,7 +10,7 @@ from ScopeSessions.WaveformReader import WaveformReader  # pyright: ignore[repor
 
 class Test_LeCroyVICPUnitTests(unittest.TestCase):
     def setUp(self):
-        self.Scope = LeCroyVICP("192.168.23.1")
+        self.Scope = LeCroyVICP("192.168.1.197")
         self.Scope.Connect()
 
     def tearDown(self):
@@ -31,6 +31,7 @@ class Test_LeCroyVICPUnitTests(unittest.TestCase):
     def test_BasicIdn(self):
         self.Scope.Write("COMM_HEADER OFF")  # Optional: Disable communication header for cleaner responses
         self.Scope.Write("*IDN?")
+        self.Scope.Write("vbs 'app.LoadPanel(\"file\")'")
         idn = self.Scope.Read()
         self.assertEqual(idn, "LECROY,SDA8330HD,CHE-LMDEWITT,11.4.0")  # Replace with expected IDN response
 
