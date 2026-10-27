@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 # Configuration
 # ---------------------------------------------------------------------
 
-sample_rate = 1.54e9    # 1.54 GS/s  because this is max IQ rate for the T3AWG6k
-bits_per_symbol = 8        # 256QAM has 8 bits per symbol
-sps = 2                  # baud rate = sample_rate / sps = 1.54e9 / 2 = 770 MBaud
-symbol_rate = sample_rate / sps  # 770 MBaud
+qam_order = 256            # 256 or 512
+bits_per_symbol = int(np.log2(qam_order))
+symbol_rate = 100e6        # 100 Mbaud
+sps = 15                   # samples per symbol
+sample_rate = symbol_rate * sps  # 1.5 GS/s, within the T3AWG6k max IQ rate
 
-# enough for a little over 2 prbs15 periods (32767 bits/8 bits or about 4095 symbols) to fill the 256QAM constellation uniformly
+# enough for a little over 2 prbs15 periods to fill the constellation uniformly
 num_symbols = 10000  
 
 # ---------------------------------------------------------------------
@@ -37,15 +38,21 @@ def prbs15(n_bits, seed=0x7FFF):
 # Levels: ±1, ±3, ±5, ..., ±15
 # Normalized to unit average power.
 # ---------------------------------------------------------------------
-pam16 = np.array([
-    -15, -13, -11, -9,
-     -7,  -5,  -3, -1,
-      1,   3,   5,  7,
-      9,  11,  13, 15
-], dtype=float)
+def build_constellation(order):
+    """Return complex points indexed by the natural-binary symbol value, normalized to unit average power."""
+    if order == 256:
+        levels = np.arange(-15, 16, 2, dtype=float)
+        pts = np.array([i + 1j * q for i in levels for q in levels])
+    elif order == 512:
+        # 24x24 grid with the four 4x4 corners removed (cross constellation)
+        levels = np.arange(-23, 24, 2, dtype=float)
+        pts = np.array([i + 1j * q for i in levels for q in levels
+                        if not (abs(i) > 15 and abs(q) > 15)])
+    else:
+        raise ValueError("qam_order must be 256 or 512")
+    return pts / np.sqrt(np.mean(np.abs(pts) ** 2))
 
-# Normalize 256QAM average power to 1
-pam16 /= np.sqrt(170)
+constellation = build_constellation(qam_order)
 
 # ---------------------------------------------------------------------
 # Generate bits
@@ -55,29 +62,16 @@ num_bits = num_symbols * bits_per_symbol
 bits = prbs15(num_bits)
 
 # Group into symbols
-bit_groups = bits.reshape((-1, 8))
+bit_groups = bits.reshape((-1, bits_per_symbol)).astype(np.int64)
 
-# First 4 bits -> I
-# Last 4 bits  -> Q
-I_idx = (
-    (bit_groups[:,0] << 3) |
-    (bit_groups[:,1] << 2) |
-    (bit_groups[:,2] << 1) |
-     bit_groups[:,3]
-)
+# MSB-first bits -> symbol index
+sym_idx = np.zeros(len(bit_groups), dtype=np.int64)
+for b in range(bits_per_symbol):
+    sym_idx = (sym_idx << 1) | bit_groups[:, b]
 
-Q_idx = (
-    (bit_groups[:,4] << 3) |
-    (bit_groups[:,5] << 2) |
-    (bit_groups[:,6] << 1) |
-     bit_groups[:,7]
-)
-
-I_symbols = pam16[I_idx]
-Q_symbols = pam16[Q_idx]
-
-# Complex 256QAM symbols
-qam_symbols = I_symbols + 1j * Q_symbols
+qam_symbols = constellation[sym_idx]
+I_symbols = qam_symbols.real
+Q_symbols = qam_symbols.imag
 
 # ---------------------------------------------------------------------
 # Root Raised Cosine (RRC) pulse shaping filter
@@ -128,7 +122,7 @@ t = np.arange(len(iq_waveform)) / sample_rate
 plt.figure(figsize=(10,4))
 plt.plot(I_waveform[:200], label='I')
 plt.plot(Q_waveform[:200], label='Q')
-plt.title(f'{symbol_rate/1e6:.2f} Mbaud 256QAM PRBS15 Waveform')
+plt.title(f'{symbol_rate/1e6:.2f} Mbaud {qam_order}QAM PRBS15 Waveform')
 plt.xlabel('Sample')
 plt.ylabel('Amplitude')
 plt.legend()
@@ -136,7 +130,7 @@ plt.grid(True)
 
 plt.figure(figsize=(6,6))
 plt.plot(I_symbols[:5000], Q_symbols[:5000], '.', ms=2)
-plt.title('256QAM Constellation')
+plt.title(f'{qam_order}QAM Constellation')
 plt.xlabel('I')
 plt.ylabel('Q')
 plt.grid(True)
@@ -149,5 +143,5 @@ print(f"Sample Rate : {sample_rate/1e9:.2f} GS/s")
 print(f"Samples     : {len(iq_waveform)}")
 
 # Save I and Q waveforms to separate txt files
-np.savetxt(f'I_waveform 256QAM {symbol_rate/1e6:.2f} Mbaud no RRC no gray.txt', I_waveform, fmt='%.6e')
-np.savetxt(f'Q_waveform 256QAM {symbol_rate/1e6:.2f} Mbaud no RRC no gray.txt', Q_waveform, fmt='%.6e')
+np.savetxt(f'I_waveform {qam_order}QAM {symbol_rate/1e6:.2f} Mbaud no RRC no gray.txt', I_waveform, fmt='%.6e')
+np.savetxt(f'Q_waveform {qam_order}QAM {symbol_rate/1e6:.2f} Mbaud no RRC no gray.txt', Q_waveform, fmt='%.6e')
